@@ -13,13 +13,13 @@ import java.util.Optional;
 
 public class RecipeJdbcDao implements CrudDAO<Recipe> {
 
-    public Optional<Recipe> findRand() {
+    public Optional<Recipe> findRand() throws SQLException {
         LocalDate dateMin = LocalDate.now().minus(6, ChronoUnit.DAYS);
         List<Long> validId = new ArrayList<>();
 
         String query = "SELECT idRecipe FROM recipe " +
                 "WHERE lastUsed <= DATE ?";
-        try (Connection con = ConnectionManager.getConnectionInstance()) {
+       Connection con = ConnectionManager.getConnectionInstance();
             try (PreparedStatement preparedStatement = con.prepareStatement(query)) {
                 preparedStatement.setDate(1, Date.valueOf(dateMin));
                 ResultSet rs = preparedStatement.executeQuery();
@@ -27,36 +27,32 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
                     validId.add(rs.getLong(1));
                 }
             }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
         int alea = (int)(validId.size() * Math.random());
         return findById(validId.get(alea));
     }
 
-    public static void createListedId(String table, String name){
+    public static void createListedId(String table, String name) throws SQLException {
         String query = "INSERT INTO ? " +
                 "(name) " +
                 "VALUE " +
                 "(?)";
-        try (Connection con = ConnectionManager.getConnectionInstance()) {
+        Connection con = ConnectionManager.getConnectionInstance();
             try (PreparedStatement preparedStatement = con.prepareStatement(query)) {
                 preparedStatement.setString(1, table);
                 preparedStatement.setString(2, name);
                 preparedStatement.executeQuery();
+                con.commit();
             } catch (SQLException e) {
+                con.rollback();
                 throw new RuntimeException(e);
             }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
     }
 
-    public static Optional<Integer> addListedId(String table, String name){
+    public static Optional<Integer> addListedId(String table, String name) throws SQLException {
         StringBuilder listId = null;
         String query = "SELECT * FROM ? " +
                 "WHERE name LIKE ? ";
-        try (Connection con = ConnectionManager.getConnectionInstance()) {
+        Connection con = ConnectionManager.getConnectionInstance();
             try (PreparedStatement preparedStatement = con.prepareStatement(query)) {
                 preparedStatement.setString(1, table);
                 preparedStatement.setString(2, "%" + name + "%");
@@ -70,18 +66,16 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
                 }
             }
             catch (SQLException e) {
+                con.rollback();
                 throw new RuntimeException(e);
             }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     @Override
-    public List<Recipe> findAll() {
+    public List<Recipe> findAll() throws SQLException {
         List<Recipe> result = new ArrayList<>();
         String query = "SELECT * FROM recipe ";
-        try (Connection con = ConnectionManager.getConnectionInstance()) {
+        Connection con = ConnectionManager.getConnectionInstance();
             try (PreparedStatement preparedStatement = con.prepareStatement(query)) {
                 ResultSet rs =preparedStatement.executeQuery();
                 while (rs.next()){
@@ -90,21 +84,17 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
                 }
                 con.commit();
             } catch (SQLException e) {
-                ConnectionManager.getConnectionInstance().rollback();
                 throw new RuntimeException(e);
             }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
         return result;
     }
 
     @Override
-    public Optional<Recipe> findById(Long id) {
+    public Optional<Recipe> findById(Long id) throws SQLException {
         String query = "SELECT * FROM recipe " +
                 "WHERE idRecipe = ?";
-        try (Connection con = ConnectionManager.getConnectionInstance()) {
-            try (PreparedStatement preparedStatement = con.prepareStatement(query)) {
+            try (Connection con = ConnectionManager.getConnectionInstance();
+                    PreparedStatement preparedStatement = con.prepareStatement(query)) {
                 preparedStatement.setLong(1, id);
                 ResultSet rs =preparedStatement.executeQuery();
                 rs.next();
@@ -112,11 +102,26 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
                 return Optional.of(new Recipe(rs.getLong(1), rs.getString(2), rs.getString(3)
                         , rs.getString(4), rs.getString(5), rs.getDate(6).toLocalDate(), rs.getString(7)));
             } catch (SQLException e) {
-                ConnectionManager.getConnectionInstance().rollback();
                 throw new RuntimeException(e);
             }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+    }
+
+    public Optional<Recipe> findByKeyWord(String KeyWord) throws SQLException {
+        String query = "SELECT * FROM recipe " +
+                "WHERE name LIKE ? OR instruction LIKE ? OR description LIKE ?";
+        try(Connection con = ConnectionManager.getConnectionInstance();){
+            try (PreparedStatement preparedStatement = con.prepareStatement(query)) {
+                preparedStatement.setString(1, "%" + KeyWord + "%");
+                preparedStatement.setString(2, "%" + KeyWord + "%");
+                preparedStatement.setString(3, "%" + KeyWord + "%");
+                ResultSet rs =preparedStatement.executeQuery();
+                rs.next();
+                con.commit();
+                return Optional.of(new Recipe(rs.getLong(1), rs.getString(2), rs.getString(3)
+                    , rs.getString(4), rs.getString(5), rs.getDate(6).toLocalDate(), rs.getString(7)));
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -124,19 +129,16 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
     public boolean delete(Long id) throws SQLException {
         String query = "DELETE FROM recipe " +
                 "WHERE idRecipe = ?";
-        try (Connection con = ConnectionManager.getConnectionInstance()) {
-            con.setAutoCommit(false);
+        try (Connection con = ConnectionManager.getConnectionInstance();){
             try (PreparedStatement preparedStatement = con.prepareStatement(query)) {
                 preparedStatement.setLong(1, id);
                 preparedStatement.executeQuery();
                 con.commit();
                 return true;
             } catch (SQLException e) {
-                ConnectionManager.getConnectionInstance().rollback();
+                con.rollback();
                 throw new RuntimeException(e);
             }
-        } catch (SQLException e){
-            throw new RuntimeException(e);
         }
     }
 
@@ -154,7 +156,7 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
         recipe.setListIdCookingTool(newIdListCookingTool);
         recipe.setListIdIngredient(newIdListIngredient);
         recipe.setWhenLastCooked(newDate);
-        try (Connection con = ConnectionManager.getConnectionInstance()) {
+        try(Connection con = ConnectionManager.getConnectionInstance();){
             try (PreparedStatement preparedStatement = con.prepareStatement(query)) {
                 preparedStatement.setString(1, newName);
                 preparedStatement.setString(2, newDescription);
@@ -166,13 +168,11 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
                 preparedStatement.executeQuery();
                 con.commit();
             } catch (SQLException e) {
-                ConnectionManager.getConnectionInstance().rollback();
+                con.rollback();
                 throw new RuntimeException(e);
             }
-        } catch (SQLException e){
-            throw new RuntimeException(e);
-        }
         return recipe;
+        }
     }
 
     public String updateName(Recipe recipe){
@@ -211,7 +211,7 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
         }
     }
 
-    public String updateListeIngredient(Recipe recipe){
+    public String updateListeIngredient(Recipe recipe) throws SQLException {
         Boolean choice = Methode.askBoolean("Voulez-vous changer la liste des ingrédients de la recette ?");
         String nameIngredient;
         List<Optional<Integer>> listeIdIngredient = new ArrayList<>();
@@ -228,7 +228,7 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
         }
     }
 
-    public String updateListeCookingTool(Recipe recipe){
+    public String updateListeCookingTool(Recipe recipe) throws SQLException {
         Boolean choice = Methode.askBoolean("Voulez-vous changer la liste des ustensiles de la recette ?");
         String nameCookingTool;
         List<Optional<Integer>> listeIdIngredient = new ArrayList<>();
@@ -259,7 +259,7 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
         String instruction = Methode.askString("Avez-vous des instructions ?");
         LocalDate lastUsed = Methode.askDate("Quand avez-vous manger ce plat pour la dernière fois ?");
         String description = Methode.askString("Avez-vous une description ?");
-        try (Connection con = ConnectionManager.getConnectionInstance()) {
+        try(Connection con = ConnectionManager.getConnectionInstance()){
             try (PreparedStatement preparedStatement = con.prepareStatement(query)) {
                 do {
                     ingredientName = Methode.askString("Y a-t-il des ingrédients à ajouter à la recette ? (sinon taper NON)");
@@ -274,10 +274,18 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
                     }
                 } while (!cookingToolName.equals("NON"));
                 for (Optional<Integer> idInLIst : listeIdIngredient){
-                    ingredientList.append(idInLIst).append(", ");
+                    if (ingredientList.isEmpty()){
+                    ingredientList.append(idInLIst);
+                    } else {
+                        ingredientList.append(", ").append(idInLIst);
+                    }
                 }
                 for (Optional<Integer> idInLIst : listeIdCookingTool){
-                    cookingToolList.append(idInLIst).append(", ");
+                    if (cookingToolList.isEmpty()){
+                        cookingToolList.append(idInLIst);
+                    } else {
+                        cookingToolList.append(", ").append(idInLIst);
+                    }
                 }
                 preparedStatement.setString(1, name);
                 preparedStatement.setString(2, description);
@@ -286,9 +294,9 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
                 preparedStatement.setString(5, String.valueOf(ingredientList));
                 preparedStatement.setString(6, String.valueOf(cookingToolList));
                 preparedStatement.executeQuery();
-                ConnectionManager.getConnectionInstance().commit();
+                con.commit();
             } catch (SQLException e) {
-                ConnectionManager.getConnectionInstance().rollback();
+                con.rollback();
                 throw new RuntimeException(e);
             }
             String query1 = "SELECT idRecipe FROM recipe WHERE name = ? AND instruction = ?";
@@ -298,37 +306,56 @@ public class RecipeJdbcDao implements CrudDAO<Recipe> {
                 ResultSet rs = preparedStatement.executeQuery();
                 rs.next();
                 id = rs.getLong(1);
+                con.commit();
             } catch (SQLException e) {
-                ConnectionManager.getConnectionInstance().rollback();
+                con.rollback();
                 throw new RuntimeException(e);
             }
             return new Recipe(id, name, instruction, String.valueOf(ingredientList), String.valueOf(cookingToolList), lastUsed, description);
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
         }
     }
 
-    public static void print(Recipe recipe){
+    public static void print(Recipe recipe) throws SQLException {
         StringBuilder listCookingTool = null , listIngredient = null;
-        String queryC = "SELECT name FROM cooking_tool " +
-                "WHERE idCookingTool IN ?"
-                , queryI = "SELECT name FROM ingredient " +
-                "WHERE idIngredient IN ?";
+        String queryC = "SELECT name FROM cooking_tool WHERE idCookingTool IN (SELECT CONVERT(value, UNSIGNED INTEGER) FROM STRING_SPLIT(?, \", \"))"
+                , queryI = "SELECT name FROM ingredient WHERE idIngredient IN (SELECT CONVERT(value, UNSIGNED INTEGER) FROM STRING_SPLIT(?, \", \"))";
+        try(Connection con = ConnectionManager.getConnectionInstance()) {
+            try (PreparedStatement preparedStatement = con.prepareStatement(queryC)) {
+                preparedStatement.setString(1, recipe.getListIdCookingTool());
+                ResultSet rs = preparedStatement.executeQuery();
+                while (rs.next()) {
+                    listCookingTool.append(rs.getString(1));
+                }
+                con.commit();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+            try (PreparedStatement preparedStatement = con.prepareStatement(queryI)) {
+                preparedStatement.setString(1, recipe.getListIdIngredient());
+                ResultSet rs = preparedStatement.executeQuery();
+                while (rs.next()) {
+                    listIngredient.append(rs.getString(1));
+                }
+                con.commit();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
 
         System.out.println(new StringBuilder("Id : ")
                 .append(recipe.getId())
                 .append("\nNom : ")
                 .append(recipe.getName())
                 .append("\nListe des ustensiles de cuisines : ")
-                .append("")
+                .append(listCookingTool)
                 .append("\nListe des ingrédients : ")
-                .append("")
+                .append("")//listIngredient)
                 .append("\nInstruction : ")
-                .append(recipe.getInstruction())
+                .append("")//recipe.getInstruction())
                 .append("\nDescription : ")
                 .append(recipe.getDescription())
                 .append("\nDate de dernière utilisation : ")
                 .append(recipe.getWhenLastCooked())
         );
+        }
     }
 }

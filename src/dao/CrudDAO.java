@@ -5,9 +5,9 @@ import java.util.Optional;
 
 public interface CrudDAO<E> {
 
-        List<E> findAll();
+        List<E> findAll() throws SQLException;
 
-        Optional<E> findById(Long id);
+        Optional<E> findById(Long id) throws SQLException;
 
         boolean delete(Long id) throws SQLException;
 

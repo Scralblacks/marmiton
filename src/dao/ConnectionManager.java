@@ -12,8 +12,8 @@ public final class ConnectionManager {
     private ConnectionManager() {
     }
 
-    public static Connection getConnectionInstance() {
-        if (CONNECTION_INSTANCE == null) {
+    public static Connection getConnectionInstance() throws SQLException {
+        if (CONNECTION_INSTANCE == null || CONNECTION_INSTANCE.isClosed() ) {
             try {
                 loadDriver();
                 CONNECTION_INSTANCE = DriverManager.getConnection(URL, "root", "root");

@@ -30,14 +30,14 @@ public class Methode {
 
     public static boolean askBoolean(String ask){
         try(Scanner scan = new Scanner(System.in)){
-            System.out.println(ask);
+            System.out.println(ask + " (true ou false attendu)");
             return scan.nextBoolean();
         }
     }
 
     public static LocalDate askDate(String ask){
         try(Scanner scan = new Scanner(System.in)){
-            System.out.println(ask + "(format yyyy-mm-dd)");
+            System.out.println(ask + " (format yyyy-mm-dd)");
             return LocalDate.parse(scan.nextLine(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
         }
